@@ -6,5 +6,5 @@ out
 build
 classes
 /.idea/
-gradle.properties
-secret-keys.gpg
+/gradle.properties
+/secret-keys.gpg
