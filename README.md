@@ -8,7 +8,7 @@ To configure how to determine if an error is recoverable, create a recoverable e
 WaitConfiguration allows it. If the error predicate returns false, the tenacious caller will throw an
 [UnrecoverableException](src/main/kotlin/co/da/tenacity/Tenacity.kt).  
   
-###Example  
+**Example**  
 You have a function that calls an external service. If the service is unavailable, it throws a
 [SocketTimedOutException](https://docs.oracle.com/javase/8/docs/api/java/net/SocketTimeoutException.html). The function
 is part of a backend process that does not interact with end-users. You want the application to keep trying the function
