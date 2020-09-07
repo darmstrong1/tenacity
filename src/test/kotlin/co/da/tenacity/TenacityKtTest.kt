@@ -1,8 +1,7 @@
 package co.da.tenacity
 
 import mu.KotlinLogging
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.LocalDateTime
@@ -121,7 +120,7 @@ class PriceIsRight(val max: Double) {
 
     logger.info { "guess: $guess" }
     logger.info { "rightPrice: $rightPrice" }
-    val diff = rightPrice - guess!!
+    val diff = rightPrice - guess
     return if (diff > 0) diff else null
   }
 }
@@ -308,7 +307,6 @@ internal class TenacityKtTest {
   @Test
   fun `apply with three args should fail`() {
     val errorPredicate: (Throwable) -> Boolean = { it is IllegalArgumentException }
-    val sumMatcher = SumMatcher(12)
     val random = Random(100)
     assertThrows<UnrecoverableException> {
       apply(
@@ -317,7 +315,7 @@ internal class TenacityKtTest {
         random.nextInt(4),
         random.nextInt(4),
         random.nextInt(4)
-      ) { t, u, v -> throw IllegalAccessException("it was never gonna work") }
+      ) { t, u, v -> if(t <= 4 && u <= 4 && v <= 4) throw IllegalAccessException("it was never gonna work") }
     }
   }
 
@@ -447,7 +445,7 @@ internal class TenacityKtTest {
   fun `get should succeed`() {
     val sometimesWorks = SometimesWorks(3)
     val localDateTime = get(waitConfig, errorPredicate, sometimesWorks::getDateTime)
-    assertTrue(localDateTime != null)
+    assertNotNull(localDateTime)
   }
 
   @Test

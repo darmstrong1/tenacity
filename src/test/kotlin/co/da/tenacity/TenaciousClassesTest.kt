@@ -1,7 +1,6 @@
 package co.da.tenacity
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
@@ -82,7 +81,7 @@ internal class TenaciousClassesTest {
     val sometimesWorks = SometimesWorks(3)
     val supplier = TenaciousSupplier(waitConfig, errorPredicate, sometimesWorks::getDateTime)
     val localDateTime = supplier.get()
-    assertTrue(localDateTime != null)
+    assertNotNull(localDateTime)
   }
 
   @Test

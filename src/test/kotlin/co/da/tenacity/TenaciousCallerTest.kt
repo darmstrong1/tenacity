@@ -1,7 +1,6 @@
 package co.da.tenacity
 
-import org.junit.Assert.assertTrue
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.LocalDateTime
@@ -245,7 +244,7 @@ class TenaciousCallerTest {
     val sometimesWorks = SometimesWorks(3)
     val localDateTime = tenaciousCaller.get(sometimesWorks::getDateTime)
     logger.info { "localDateTime: $localDateTime" }
-    assertTrue(localDateTime != null)
+    assertNotNull(localDateTime)
   }
 
   @Test
