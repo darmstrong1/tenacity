@@ -46,6 +46,8 @@ try {
 }
 ```
 Please see test cases for other examples.
+
+Tenacity is available at the [Maven Central Repository](https://search.maven.org/artifact/co.davidarmstrong/tenacity).
    
 
   
