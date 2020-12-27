@@ -14,12 +14,12 @@ You have a function that calls an external service. If the service is unavailabl
 is part of a backend process that does not interact with end-users. You want the application to keep trying the function
 call until it becomes available or fails for another reason. 
 You could create an error predicate like this:
-```
+```kotlin
 val errorPredicate: (Throwable) -> Boolean = { it is SocketTimeoutException }
 ```
 This would cause the tenacious caller to retry if the function throws a SocketTimedOutException. 
 You could create a WaitConfiguration like this:  
-```
+```kotlin
 val waitConfig = WaitConfiguration(TimeUnit.MINUTES, 1, 60, 30)
 ```
 If the external service were unavailable, and the function threw a SocketTimedOutException, the tenacious caller would
@@ -27,7 +27,7 @@ retry the function call once per minute for 60 times, once per two minutes for 6
 for 60 times, once per 8 minutes for 60 times and once per 16 minutes for 60 times. Finally, it would try once every 30
 minutes until the service becomes available, and the function returns successfully or the service becomes available and
 fails for another reason.
-```
+```kotlin
 import co.da.tenacity.WaitConfiguration
 import co.da.tenacity.Tenacity.apply
 
