@@ -1,5 +1,6 @@
 package co.da.tenacity
 
+import java.util.NoSuchElementException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -19,6 +20,7 @@ data class WaitConfiguration(
   val endInterval: Long,
   val iterations: Long,
   val infinite: Boolean = true,
+  val logFirstStackTrace: Boolean = true,
 ) {
   /**
    * startInterval and endInterval are the same. Infinite is set to false.
@@ -29,6 +31,7 @@ data class WaitConfiguration(
     interval,
     iterations,
     false,
+      true,
   )
 
   /**
