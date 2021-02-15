@@ -19,6 +19,53 @@ private class RecoverableException : RuntimeException()
  */
 class UnrecoverableException(cause: Throwable) : RuntimeException(cause)
 
+/*
+ * Logs when a recoverable exception is caught and sleeps for the time configured in the WaitConfiguration.
+ */
+private fun logAndWait(i: Long, cfg: WaitConfiguration, e: Exception) {
+  if (cfg.logFirstStackTrace && i == 1L) {
+    logger.info(e) {
+      "A recoverable exception occurred. $e${System.lineSeparator()}" +
+          "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
+    }
+  } else {
+    logger.info {
+      "A recoverable exception occurred. $e${System.lineSeparator()}" +
+          "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
+    }
+  }
+  cfg.timeUnit.sleep(cfg.startInterval)
+}
+
+/*
+ * If error predicate returns true, exception is recoverable and it logs this and waits. Otherwise, it throws
+ * an UnrecoverableException to indicate it will not try any more.
+ */
+private fun handleException(i: Long, cfg: WaitConfiguration, errPredicate: (Throwable) -> Boolean, e: Exception) {
+  if (errPredicate(e)) {
+    logAndWait(i, cfg, e)
+  } else {
+    throw UnrecoverableException(e)
+  }
+}
+
+/*
+ * Advances the wait configuration by multiplying the startInterval by 2. If that is greater than endInterval, it
+ * sets startInterval to endInterval. If infinite is true, it sets iterations to Long.MAX_VALUE so that the next
+ * set of retries will be practically infinite as long as it returns a recoverable exception.
+ */
+private fun advanceWaitConfig(cfg: WaitConfiguration): WaitConfiguration {
+  var iterations = cfg.iterations
+  var startInterval = cfg.startInterval * 2
+  if (startInterval >= cfg.endInterval) {
+    startInterval = cfg.endInterval
+    if (cfg.infinite) {
+      iterations = Long.MAX_VALUE
+    }
+  }
+  return WaitConfiguration(cfg.timeUnit, startInterval, cfg.endInterval, iterations, cfg.infinite, false)
+}
+
 /**
  * Calls the passed in function tenaciously according to the WaitConfiguration object.
  * @param func the function to call
@@ -40,25 +87,9 @@ fun <T, R> apply(waitConfig: WaitConfiguration, errorPredicate: (Throwable) -> B
       try {
         return func(t)
       } catch (e: Exception) {
-        if (errPredicate(e)) {
-          if (i == 1L) {
-            logger.info(e) {
-              "A recoverable exception occurred. $e${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          } else {
-            logger.info {
-              "A recoverable exception occurred. ${e.message}${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          }
-          cfg.timeUnit.sleep(cfg.startInterval)
-        } else {
-          throw UnrecoverableException(e)
-        }
+        handleException(i, cfg, errPredicate, e)
       }
     }
-
     // Iterations complete, so throw a RecoverableException to indicate that we should go to the next WaitConfiguration.
     throw RecoverableException()
   }
@@ -68,15 +99,7 @@ fun <T, R> apply(waitConfig: WaitConfiguration, errorPredicate: (Throwable) -> B
       return apply(t, func)
     } catch (e: RecoverableException) {
       if (cfg.startInterval < cfg.endInterval) {
-        var iterations = cfg.iterations
-        var startInterval = cfg.startInterval * 2
-        if (startInterval >= cfg.endInterval) {
-          startInterval = cfg.endInterval
-          if (cfg.infinite) {
-            iterations = Long.MAX_VALUE
-          }
-        }
-        cfg = WaitConfiguration(cfg.timeUnit, startInterval, cfg.endInterval, iterations, cfg.infinite)
+        cfg = advanceWaitConfig(cfg)
       } else {
         logger.warn("Retrying for the last time.")
         errPredicate = TERMINAL_PREDICATE
@@ -113,25 +136,9 @@ fun <T, U, R> apply(
       try {
         return func(t, u)
       } catch (e: Exception) {
-        if (errPredicate(e)) {
-          if (i == 1L) {
-            logger.info(e) {
-              "A recoverable exception occurred. $e${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          } else {
-            logger.info {
-              "A recoverable exception occurred. ${e.message}${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          }
-          cfg.timeUnit.sleep(cfg.startInterval)
-        } else {
-          throw UnrecoverableException(e)
-        }
+        handleException(i, cfg, errPredicate, e)
       }
     }
-
     // Iterations complete, so throw a RecoverableException to indicate that we should go to the next WaitConfiguration.
     throw RecoverableException()
   }
@@ -141,15 +148,7 @@ fun <T, U, R> apply(
       return apply(t, u, func)
     } catch (e: RecoverableException) {
       if (cfg.startInterval < cfg.endInterval) {
-        var iterations = cfg.iterations
-        var startInterval = cfg.startInterval * 2
-        if (startInterval >= cfg.endInterval) {
-          startInterval = cfg.endInterval
-          if (cfg.infinite) {
-            iterations = Long.MAX_VALUE
-          }
-        }
-        cfg = WaitConfiguration(cfg.timeUnit, startInterval, cfg.endInterval, iterations, cfg.infinite)
+        cfg = advanceWaitConfig(cfg)
       } else {
         logger.warn("Retrying for the last time.")
         errPredicate = TERMINAL_PREDICATE
@@ -188,25 +187,9 @@ fun <T, U, V, R> apply(
       try {
         return func(t, u, v)
       } catch (e: Exception) {
-        if (errPredicate(e)) {
-          if (i == 1L) {
-            logger.info(e) {
-              "A recoverable exception occurred. $e${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          } else {
-            logger.info {
-              "A recoverable exception occurred. ${e.message}${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          }
-          cfg.timeUnit.sleep(cfg.startInterval)
-        } else {
-          throw UnrecoverableException(e)
-        }
+        handleException(i, cfg, errPredicate, e)
       }
     }
-
     // Iterations complete, so throw a RecoverableException to indicate that we should go to the next WaitConfiguration.
     throw RecoverableException()
   }
@@ -216,15 +199,7 @@ fun <T, U, V, R> apply(
       return apply(t, u, v, func)
     } catch (e: RecoverableException) {
       if (cfg.startInterval < cfg.endInterval) {
-        var iterations = cfg.iterations
-        var startInterval = cfg.startInterval * 2
-        if (startInterval >= cfg.endInterval) {
-          startInterval = cfg.endInterval
-          if (cfg.infinite) {
-            iterations = Long.MAX_VALUE
-          }
-        }
-        cfg = WaitConfiguration(cfg.timeUnit, startInterval, cfg.endInterval, iterations, cfg.infinite)
+        cfg = advanceWaitConfig(cfg)
       } else {
         logger.warn("Retrying for the last time.")
         errPredicate = TERMINAL_PREDICATE
@@ -265,25 +240,9 @@ fun <T, U, V, W, R> apply(
       try {
         return func(t, u, v, w)
       } catch (e: Exception) {
-        if (errPredicate(e)) {
-          if (i == 1L) {
-            logger.info(e) {
-              "A recoverable exception occurred. $e${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          } else {
-            logger.info {
-              "A recoverable exception occurred. ${e.message}${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          }
-          cfg.timeUnit.sleep(cfg.startInterval)
-        } else {
-          throw UnrecoverableException(e)
-        }
+        handleException(i, cfg, errPredicate, e)
       }
     }
-
     // Iterations complete, so throw a RecoverableException to indicate that we should go to the next WaitConfiguration.
     throw RecoverableException()
   }
@@ -293,15 +252,7 @@ fun <T, U, V, W, R> apply(
       return apply(t, u, v, w, func)
     } catch (e: RecoverableException) {
       if (cfg.startInterval < cfg.endInterval) {
-        var iterations = cfg.iterations
-        var startInterval = cfg.startInterval * 2
-        if (startInterval >= cfg.endInterval) {
-          startInterval = cfg.endInterval
-          if (cfg.infinite) {
-            iterations = Long.MAX_VALUE
-          }
-        }
-        cfg = WaitConfiguration(cfg.timeUnit, startInterval, cfg.endInterval, iterations, cfg.infinite)
+        cfg = advanceWaitConfig(cfg)
       } else {
         logger.warn("Retrying for the last time.")
         errPredicate = TERMINAL_PREDICATE
@@ -331,25 +282,9 @@ fun <T> applyUnary(waitConfig: WaitConfiguration, errorPredicate: (Throwable) ->
       try {
         return func(t)
       } catch (e: Exception) {
-        if (errPredicate(e)) {
-          if (i == 1L) {
-            logger.info(e) {
-              "A recoverable exception occurred. $e${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          } else {
-            logger.info {
-              "A recoverable exception occurred. ${e.message}${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          }
-          cfg.timeUnit.sleep(cfg.startInterval)
-        } else {
-          throw UnrecoverableException(e)
-        }
+        handleException(i, cfg, errPredicate, e)
       }
     }
-
     // Iterations complete, so throw a RecoverableException to indicate that we should go to the next WaitConfiguration.
     throw RecoverableException()
   }
@@ -359,15 +294,7 @@ fun <T> applyUnary(waitConfig: WaitConfiguration, errorPredicate: (Throwable) ->
       return apply(t, func)
     } catch (e: RecoverableException) {
       if (cfg.startInterval < cfg.endInterval) {
-        var iterations = cfg.iterations
-        var startInterval = cfg.startInterval * 2
-        if (startInterval >= cfg.endInterval) {
-          startInterval = cfg.endInterval
-          if (cfg.infinite) {
-            iterations = Long.MAX_VALUE
-          }
-        }
-        cfg = WaitConfiguration(cfg.timeUnit, startInterval, cfg.endInterval, iterations, cfg.infinite)
+        cfg = advanceWaitConfig(cfg)
       } else {
         logger.warn("Retrying for the last time.")
         errPredicate = TERMINAL_PREDICATE
@@ -404,25 +331,9 @@ fun <T> applyBinary(
       try {
         return func(t1, t2)
       } catch (e: Exception) {
-        if (errPredicate(e)) {
-          if (i == 1L) {
-            logger.info(e) {
-              "A recoverable exception occurred. $e${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          } else {
-            logger.info {
-              "A recoverable exception occurred. ${e.message}${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          }
-          cfg.timeUnit.sleep(cfg.startInterval)
-        } else {
-          throw UnrecoverableException(e)
-        }
+        handleException(i, cfg, errPredicate, e)
       }
     }
-
     // Iterations complete, so throw a RecoverableException to indicate that we should go to the next WaitConfiguration.
     throw RecoverableException()
   }
@@ -432,16 +343,7 @@ fun <T> applyBinary(
       return apply(t1, t2, func)
     } catch (e: RecoverableException) {
       if (cfg.startInterval < cfg.endInterval) {
-        var iterations = cfg.iterations
-        var startInterval = cfg.startInterval * 2
-        if (startInterval >= cfg.endInterval) {
-          startInterval = cfg.endInterval
-          if (cfg.infinite) {
-            iterations = Long.MAX_VALUE
-          }
-        }
-        cfg = WaitConfiguration(cfg.timeUnit, startInterval, cfg.endInterval, iterations, cfg.infinite)
-        logger.info { "cfg: $cfg" }
+        cfg = advanceWaitConfig(cfg)
       } else {
         logger.warn("Retrying for the last time.")
         errPredicate = TERMINAL_PREDICATE
@@ -470,25 +372,9 @@ fun <T> get(waitConfig: WaitConfiguration, errorPredicate: (Throwable) -> Boolea
       try {
         return func()
       } catch (e: Exception) {
-        if (errPredicate(e)) {
-          if (i == 1L) {
-            logger.info(e) {
-              "A recoverable exception occurred. $e${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          } else {
-            logger.info {
-              "A recoverable exception occurred. ${e.message}${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          }
-          cfg.timeUnit.sleep(cfg.startInterval)
-        } else {
-          throw UnrecoverableException(e)
-        }
+        handleException(i, cfg, errPredicate, e)
       }
     }
-
     // Iterations complete, so throw a RecoverableException to indicate that we should go to the next WaitConfiguration.
     throw RecoverableException()
   }
@@ -498,15 +384,7 @@ fun <T> get(waitConfig: WaitConfiguration, errorPredicate: (Throwable) -> Boolea
       return apply(func)
     } catch (e: RecoverableException) {
       if (cfg.startInterval < cfg.endInterval) {
-        var iterations = cfg.iterations
-        var startInterval = cfg.startInterval * 2
-        if (startInterval >= cfg.endInterval) {
-          startInterval = cfg.endInterval
-          if (cfg.infinite) {
-            iterations = Long.MAX_VALUE
-          }
-        }
-        cfg = WaitConfiguration(cfg.timeUnit, startInterval, cfg.endInterval, iterations, cfg.infinite)
+        cfg = advanceWaitConfig(cfg)
       } else {
         logger.warn("Retrying for the last time.")
         errPredicate = TERMINAL_PREDICATE
@@ -535,25 +413,9 @@ fun <T> accept(waitConfig: WaitConfiguration, errorPredicate: (Throwable) -> Boo
       try {
         return func(t)
       } catch (e: Exception) {
-        if (errPredicate(e)) {
-          if (i == 1L) {
-            logger.info(e) {
-              "A recoverable exception occurred. $e${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          } else {
-            logger.info {
-              "A recoverable exception occurred. ${e.message}${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          }
-          cfg.timeUnit.sleep(cfg.startInterval)
-        } else {
-          throw UnrecoverableException(e)
-        }
+        handleException(i, cfg, errPredicate, e)
       }
     }
-
     // Iterations complete, so throw a RecoverableException to indicate that we should go to the next WaitConfiguration.
     throw RecoverableException()
   }
@@ -563,15 +425,7 @@ fun <T> accept(waitConfig: WaitConfiguration, errorPredicate: (Throwable) -> Boo
       return accept(t, func)
     } catch (e: RecoverableException) {
       if (cfg.startInterval < cfg.endInterval) {
-        var iterations = cfg.iterations
-        var startInterval = cfg.startInterval * 2
-        if (startInterval >= cfg.endInterval) {
-          startInterval = cfg.endInterval
-          if (cfg.infinite) {
-            iterations = Long.MAX_VALUE
-          }
-        }
-        cfg = WaitConfiguration(cfg.timeUnit, startInterval, cfg.endInterval, iterations, cfg.infinite)
+        cfg = advanceWaitConfig(cfg)
       } else {
         logger.warn("Retrying for the last time.")
         errPredicate = TERMINAL_PREDICATE
@@ -607,25 +461,9 @@ fun <T, U> accept(
       try {
         return func(t, u)
       } catch (e: Exception) {
-        if (errPredicate(e)) {
-          if (i == 1L) {
-            logger.info(e) {
-              "A recoverable exception occurred. $e${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          } else {
-            logger.info {
-              "A recoverable exception occurred. ${e.message}${System.lineSeparator()}" +
-                  "\tRetrying in ${cfg.startInterval} ${cfg.timeUnit}."
-            }
-          }
-          cfg.timeUnit.sleep(cfg.startInterval)
-        } else {
-          throw UnrecoverableException(e)
-        }
+        handleException(i, cfg, errPredicate, e)
       }
     }
-
     // Iterations complete, so throw a RecoverableException to indicate that we should go to the next WaitConfiguration.
     throw RecoverableException()
   }
@@ -635,15 +473,7 @@ fun <T, U> accept(
       return accept(func, t, u)
     } catch (e: RecoverableException) {
       if (cfg.startInterval < cfg.endInterval) {
-        var iterations = cfg.iterations
-        var startInterval = cfg.startInterval * 2
-        if (startInterval >= cfg.endInterval) {
-          startInterval = cfg.endInterval
-          if (cfg.infinite) {
-            iterations = Long.MAX_VALUE
-          }
-        }
-        cfg = WaitConfiguration(cfg.timeUnit, startInterval, cfg.endInterval, iterations, cfg.infinite)
+        cfg = advanceWaitConfig(cfg)
       } else {
         logger.warn("Retrying for the last time.")
         errPredicate = TERMINAL_PREDICATE
@@ -651,5 +481,3 @@ fun <T, U> accept(
     }
   }
 }
-
-
